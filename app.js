@@ -230,23 +230,31 @@ const isImageUrl = s => /^https?:\/\/\S+\.(png|jpe?g|gif|webp|avif)(\?\S*)?$/i.t
 
 function inlineMd(s){
   let h = escHtml(s);
-  const imgs = [];
-  h = h.replace(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, (m, alt, src) => {
-    // 이미지 주소가 아니면(사진 페이지 주소 등) 깨진 그림 대신 링크로 보여준다
-    imgs.push(isImageUrl(src)
-      ? `<img src="${src}" alt="${escHtml(alt)}" loading="lazy">`
-      : `<a href="${src}" target="_blank" rel="noopener noreferrer">${escHtml(alt || src)}</a>`);
-    return `\u0000${imgs.length - 1}\u0000`;
-  });
+  const held = [];
+  const hold = html => { held.push(html); return '\u0000' + (held.length - 1) + '\u0000'; };
+
+  // 1) 이미지![]() — 진짜 이미지 주소면 그림, 아니면 링크
+  h = h.replace(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, (m, alt, src) => hold(
+    isImageUrl(src)
+      ? `<img src="${src}" alt="${alt}" loading="lazy">`
+      : `<a href="${src}" target="_blank" rel="noopener noreferrer">${alt || src}</a>`));
+
+  // 2) 링크 []() — 밖에 있는 주소부터 먼저 링크로 바꾸면 href 안까지 건드리므로
+  //    링크는 먼저 떼어 놓고(placeholder), 맨 끝에 되돌린다.
+  h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (m, text, href) =>
+    hold(`<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`));
+
+  // 3) 맨 주소
   h = h.replace(/(https?:\/\/[^\s<]+)/g, (u) => {
     const cut = u.replace(/[.,;:!?)\]]+$/, '');
     const tail = u.slice(cut.length);
     return `<a href="${cut}" target="_blank" rel="noopener noreferrer">${cut}</a>${tail}`;
   });
+
   h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   h = h.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
   h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
-  return h.replace(/\u0000(\d+)\u0000/g, (m, i) => imgs[+i] || '');
+  return h.replace(/\u0000(\d+)\u0000/g, (m, i) => held[+i] || '');
 }
 
 function renderBody(body){
