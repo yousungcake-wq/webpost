@@ -13,6 +13,7 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
+const VERSION = 'v19';
 const K = { posts:'webpost.posts.v1', gh:'webpost.gh.v1', theme:'webpost.theme', draft:'webpost.draft.v1' };
 const PAGE = 30;
 
@@ -1008,9 +1009,9 @@ $('#setBtn').addEventListener('click', () => {
   $('#ghOwner').value = GH ? GH.owner : '';
   $('#ghRepo').value = GH ? GH.repo : '';
   $('#ghToken').value = GH ? GH.token : '';
-  $('#setMode').textContent = remote
+  $('#setMode').textContent = (remote
     ? `지금은 GitHub(${GH.owner}/${GH.repo})의 글을 읽고 있어요.`
-    : '지금은 이 기기에만 저장하고 있어요.';
+    : '지금은 이 기기에만 저장하고 있어요.') + ` WebPost ${VERSION}`;
   setDlg.showModal();
   requestAnimationFrame(() => setDlg.classList.add('is-open'));
 });
