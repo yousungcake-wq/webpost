@@ -627,27 +627,30 @@ $('#sheetActions').addEventListener('click', async e => {
   }
 });
 
-/* 시트 끌기 — 손가락을 따라 높이가 변한다.
-   70%에서 위로 올리면 시트가 손끝까지 올라오고, 꼭대기에 닿으면 그 나머지가
-   내용 스크롤로 자연스럽게 넘어간다. 아래로 내리면 70%로 접히고, 더 내리면 닫힌다.
-   (예전엔 스크롤이 6px 나면 클래스로 '뿅' 바꿔서 뚝 달라붙는 것처럼 보였다) */
+/* 시트 끌기 — 화면을 칸으로 나누지 않는다.
+   올린 만큼 그 자리에서 멈추고, 손을 놓아도 그 높이에 그대로 있다.
+   (예전엔 놓는 순간 위/아래 칸으로 튕겨 붙어서 '딱 달라붙는다'고 느껴졌다)
+   꼭대기에 닿으면 남은 끌기가 내용 스크롤로 넘어가고, 바닥까지 끌어내리면 닫힌다. */
 const sheetInner = $('#sheetInner');
-const HALF = () => Math.round(window.innerHeight * 0.7);
-const FULL = () => window.innerHeight;
+const VH = () => window.innerHeight;
 
 let g = null;
 
 function startGesture(y, fromHandle){
-  if (sheet.classList.contains('is-fit')) return;   // 짧은 글은 키울 것이 없다
-  const h = sheet.getBoundingClientRect().height;
   g = {
     y0: y,
-    h0: h,
-    h,
-    extra: 0,
+    h0: sheet.getBoundingClientRect().height,
+    h: sheet.getBoundingClientRect().height,
     scroll0: fromHandle ? 0 : sheetInner.scrollTop,
+    upOnlyOff: sheet.classList.contains('is-fit'),   // 짧은 글은 올릴 것이 없다
+    armed: false,
     mode: 'pending'
   };
+}
+
+function arm(){
+  if (g.armed) return;
+  g.armed = true;
   sheet.classList.remove('is-fit');
   sheet.style.transition = 'none';
 }
@@ -657,22 +660,24 @@ function moveGesture(e, y){
   const dy = y - g.y0;
 
   if (g.mode === 'pending'){
-    if (Math.abs(dy) < 5) return;
-    if (g.scroll0 > 0){ g.mode = 'native'; return; }   // 이미 읽던 중 — 내용 스크롤
+    if (Math.abs(dy) < 4) return;
+    if (g.upOnlyOff && dy < 0){ g.mode = 'none'; return; }
+    if (dy < 0 && g.scroll0 > 0){ g.mode = 'native'; return; }   // 읽던 중 — 내용 스크롤
     g.mode = dy < 0 ? 'expand' : 'collapse';
   }
-  if (g.mode === 'native') return;                     // 브라우저 스크롤에 맡긴다
+  if (g.mode === 'native' || g.mode === 'none') return;
   if (e && e.cancelable) e.preventDefault();
+  arm();
 
   if (g.mode === 'expand'){
-    const want = g.h0 - dy;                            // 위로 올린 만큼 커진다
-    if (want >= FULL()){
-      sheet.style.height = FULL() + 'px';
-      g.h = FULL();
-      g.mode = 'scroll';                               // 꼭대기 도달 → 내용 스크롤로 넘김
+    const want = g.h0 - dy;
+    if (want >= VH()){
+      g.h = VH();
+      sheet.style.height = VH() + 'px';
+      g.mode = 'scroll';              // 꼭대기 — 남은 끌기는 내용 스크롤로 넘긴다
       g.y0 = y;
     } else {
-      g.h = Math.max(HALF(), Math.round(want));
+      g.h = Math.round(want);
       sheet.style.height = g.h + 'px';
     }
     return;
@@ -681,20 +686,9 @@ function moveGesture(e, y){
     sheetInner.scrollTop = -(y - g.y0);
     return;
   }
-  if (g.mode === 'collapse'){
-    const want = g.h0 - dy;                            // 아래로 내린 만큼 작아진다
-    if (want <= HALF()){
-      sheet.style.height = HALF() + 'px';
-      g.h = HALF();
-      g.extra = HALF() - want;                         // 여분은 시트째로 끌어내린다
-      sheet.style.transform = `translateY(${Math.min(g.extra, 180)}px)`;
-    } else {
-      g.extra = 0;
-      sheet.style.transform = '';
-      g.h = Math.min(FULL(), Math.round(want));
-      sheet.style.height = g.h + 'px';
-    }
-  }
+  // collapse — 끝까지 내리면 0 까지 줄어든다(닫히는 느낌)
+  g.h = Math.max(0, Math.round(g.h0 - dy));
+  sheet.style.height = g.h + 'px';
 }
 
 function endGesture(){
@@ -702,40 +696,33 @@ function endGesture(){
   const gg = g;
   g = null;
   sheet.style.transition = '';
-  sheet.style.transform = '';
 
-  if (gg.mode === 'pending'){ sheet.style.height = ''; return; }
-  if (gg.mode === 'collapse' && gg.extra > 110){      // 충분히 끌어내렸으면 닫기
+  if (!gg.armed) return;                    // 그냥 탭했거나 내용을 스크롤했을 뿐
+
+  // 바닥 가까이까지 끌어내렸을 때만 닫는다. 조금 내리고 놓으면 그 높이에 그대로.
+  if (gg.mode === 'collapse' && gg.h < 320 && (gg.h0 - gg.h) > 40){
     sheet.style.height = '';
     closePost();
     return;
   }
-
-  const toFull = gg.mode === 'scroll' || gg.h > (HALF() + FULL()) / 2;
-  const target = toFull ? FULL() : HALF();
-
-  sheet.classList.toggle('is-full', toFull);
-  if (!toFull) sheetInner.scrollTop = 0;
-
-  // 지금 높이를 붙잡아 두고 다음 프레임에 목표로 — 그래야 튀지 않고 이어진다
-  sheet.style.height = gg.h + 'px';
-  requestAnimationFrame(() => { sheet.style.height = target + 'px'; });
-  setTimeout(() => { sheet.style.height = ''; }, 280);
+  // 놓은 자리에 그대로. 화면 끝에 닿았을 때만 딱 맞춘다(1px 틈 방지).
+  const h = VH() - gg.h < 6 ? VH() : gg.h;
+  sheet.style.height = h + 'px';
+  sheet.classList.toggle('is-full', h === VH());
 }
 
 const handle = $('#sheetHandle');
 handle.addEventListener('touchstart', e => startGesture(e.touches[0].clientY, true), { passive:true });
 sheetInner.addEventListener('touchstart', e => startGesture(e.touches[0].clientY, false), { passive:true });
 
-const onTouchMove = e => {
+sheet.addEventListener('touchmove', e => {
   if (!g) return;
   moveGesture(e, e.touches[0].clientY);
-};
-sheet.addEventListener('touchmove', onTouchMove, { passive:false });
+}, { passive:false });
 sheet.addEventListener('touchend', endGesture);
 sheet.addEventListener('touchcancel', endGesture);
 
-/* 데스크톱: 손잡이를 마우스로 끌 수 있게 */
+/* 데스크톱: 손잡이를 마우스로 끌기 */
 handle.addEventListener('mousedown', e => {
   e.preventDefault();
   startGesture(e.clientY, true);
@@ -744,14 +731,6 @@ handle.addEventListener('mousedown', e => {
   addEventListener('mousemove', mv);
   addEventListener('mouseup', up);
 });
-
-/* 휠·트랙패드로 내리면 (터치가 아니라 끌기가 없을 때) 그때는 바로 펼친다 */
-sheetInner.addEventListener('scroll', () => {
-  if (!g && sheetInner.scrollTop > 4 && !sheet.classList.contains('is-full')){
-    sheet.classList.remove('is-fit');
-    sheet.classList.add('is-full');
-  }
-}, { passive:true });
 
 /* ── 글쓰기 ────────────────────────────────────────────────────────── */
 const editor = $('#editor');
