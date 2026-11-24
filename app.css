@@ -103,9 +103,9 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
   flex:0 0 auto}
 .post__flag{font-size:11px;font-weight:700;color:var(--accent-ink);background:var(--accent-soft);
   padding:2px 7px;border-radius:6px;flex:0 0 auto}
-.post__title{font-size:17px;font-weight:700;line-height:1.45;margin:0 0 5px;letter-spacing:-.01em;
+.post__title{overflow-wrap:anywhere;font-size:17px;font-weight:700;line-height:1.45;margin:0 0 5px;letter-spacing:-.01em;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.post__body{font-size:var(--font-summary);line-height:1.6;color:var(--fg);
+.post__body{overflow-wrap:anywhere;font-size:var(--font-summary);line-height:1.6;color:var(--fg);
   display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .post__body:empty{display:none}
 .post--notitle .post__title{display:none}
@@ -139,7 +139,7 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
 .sheet__title{font-size:22px;font-weight:750;line-height:1.38;margin:6px 0 12px;letter-spacing:-.015em}
 .sheet__title:empty{display:none}
 
-.sheet__body{font-size:15.5px;line-height:1.75;color:var(--fg)}
+.sheet__body{overflow-wrap:anywhere;font-size:15.5px;line-height:1.75;color:var(--fg)}
 .sheet__body p{margin:0 0 15px}
 .sheet__body p:last-child{margin-bottom:0}
 .sheet__body ul{margin:0 0 15px;padding-left:20px;list-style:disc}
@@ -195,12 +195,15 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
 .draftnote button{margin-left:auto;border:0;background:none;color:var(--accent-ink);font:inherit;
   font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px}
 
+/* 제목도 여러 줄 — 한 줄짜리 input 이면 긴 제목이 옆으로 밀려나 가로로 스크롤해야 했다 */
 .editor__title{display:block;width:100%;border:0;background:none;color:var(--fg);font:inherit;
   font-size:23px;font-weight:750;line-height:1.4;letter-spacing:-.015em;padding:0;margin:0 0 10px;
-  outline:none}
+  outline:none;resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;
+  word-break:keep-all;max-height:8.6em}
 .editor__title::placeholder{color:color-mix(in srgb,var(--muted) 62%,var(--bg))}
 .editor__body{display:block;width:100%;min-height:30vh;border:0;background:none;color:var(--fg);
-  font:inherit;font-size:16px;line-height:1.75;padding:0;resize:none;outline:none;overflow:hidden}
+  font:inherit;font-size:16px;line-height:1.75;padding:0;resize:none;outline:none;overflow:hidden;
+  white-space:pre-wrap;overflow-wrap:anywhere}
 .editor__body::placeholder{color:color-mix(in srgb,var(--muted) 62%,var(--bg))}
 .editor__hint{margin-top:20px;font-size:11.5px;color:var(--muted);line-height:1.7;opacity:.9}
 

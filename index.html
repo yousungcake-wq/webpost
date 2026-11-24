@@ -14,7 +14,7 @@
 <script>/* 테마는 그리기 전에 정한다(깜빡임 방지) */
 (function(){try{var t=localStorage.getItem('webpost.theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}})();
 </script>
-<link rel="stylesheet" href="app.css?v=8">
+<link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
 
@@ -90,8 +90,8 @@
       <span>작성 중이던 초안을 불러왔어요</span>
       <button type="button" id="clearDraft">지우기</button>
     </div>
-    <input class="editor__title" id="titleInput" type="text" placeholder="제목"
-           autocomplete="off" enterkeyhint="next">
+    <textarea class="editor__title" id="titleInput" rows="1" placeholder="제목"
+              enterkeyhint="next" spellcheck="false"></textarea>
     <textarea class="editor__body" id="bodyInput" rows="6" placeholder="무슨 일이 있었나요?"
               enterkeyhint="enter"></textarea>
     <p class="editor__hint">**굵게** · *기울임* · &gt; 인용 · - 목록 · 이미지는 주소만 붙여넣기</p>
@@ -126,6 +126,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

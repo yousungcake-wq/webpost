@@ -490,6 +490,7 @@ function openPost(id, hash){
   const del = $('[data-act="del"]', acts);
   del.classList.remove('is-armed');
   del.textContent = '삭제';
+  del.disabled = false;          // 지난번 삭제에서 꺼진 채로 남아 있으면 다음 글이 안 지워진다
 
   if (!sheet.open){
     sheet.showModal();
@@ -591,6 +592,11 @@ function autoGrow(){
   bodyInput.style.height = 'auto';
   bodyInput.style.height = Math.max(bodyInput.scrollHeight, Math.round(window.innerHeight * 0.3)) + 'px';
 }
+/* 제목도 입력한 만큼 늘어난다 — 긴 제목이 한 줄에 갇혀 옆으로 밀리지 않게 */
+function autoGrowTitle(){
+  titleInput.style.height = 'auto';
+  titleInput.style.height = titleInput.scrollHeight + 'px';
+}
 
 let draftTimer = null;
 function saveDraft(){
@@ -624,6 +630,7 @@ function openEditor(post, prefill){
   editor.hidden = false;
   document.documentElement.style.overflow = 'hidden';
   paintCount();
+  autoGrowTitle();
   autoGrow();
   (post || titleInput.value ? bodyInput : titleInput).focus({ preventScroll:true });
 }
@@ -678,11 +685,11 @@ $('#writeBtn').addEventListener('click', () => openEditor(null));
 $('#cancelBtn').addEventListener('click', () => closeEditor(false));
 $('#clearDraft').addEventListener('click', () => {
   titleInput.value = ''; bodyInput.value = ''; dateInput.value = todayStr();
-  draftNote.hidden = true; lsSet(K.draft, undefined); paintCount(); autoGrow(); titleInput.focus();
+  draftNote.hidden = true; lsSet(K.draft, undefined); paintCount(); autoGrowTitle(); autoGrow(); titleInput.focus();
 });
 $('#todayBtn').addEventListener('click', () => { dateInput.value = todayStr(); });
 saveBtn.addEventListener('click', savePost);
-titleInput.addEventListener('input', () => { paintCount(); saveDraft(); });
+titleInput.addEventListener('input', () => { paintCount(); autoGrowTitle(); saveDraft(); });
 bodyInput.addEventListener('input', () => { paintCount(); autoGrow(); saveDraft(); });
 dateInput.addEventListener('change', saveDraft);
 titleInput.addEventListener('keydown', e => {
