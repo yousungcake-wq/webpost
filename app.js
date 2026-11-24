@@ -554,14 +554,19 @@ function openPost(id, hash){
     sheet.showModal();
     requestAnimationFrame(() => sheet.classList.add('is-open'));
   }
-  // 매번 70%에서 시작. 짧은 글은 내용만큼만, 긴 글은 내리면 화면 끝까지.
+  // 매번 70%에서 시작. 짧은 글은 내용만큼만.
   sheet.style.height = '';          // 지난번 끌기의 인라인 높이가 남아 있으면 지운다
   sheet.style.transform = '';
   sheet.classList.remove('is-full');
+  sheet.classList.remove('is-page');
+  sheet.style.setProperty('--m', '0');
   sheet.classList.add('is-fit');
   const inner = $('#sheetInner');
   inner.scrollTop = 0;
   requestAnimationFrame(() => {
+    // 하단바 높이를 재서 내용 아래 여백으로 준다(바가 내용을 가리지 않게)
+    const fh = document.querySelector('.sheet__foot').getBoundingClientRect().height;
+    if (fh) sheet.style.setProperty('--foot-h', Math.round(fh) + 'px');
     const fits = inner.scrollHeight <= inner.clientHeight + 4;
     sheet.classList.toggle('is-fit', fits);
   });
@@ -637,6 +642,14 @@ const VH = () => window.innerHeight;
 
 let g = null;
 
+/* 높이 → 페이지 진행도. 70%에서 0, 꼭대기에서 1 */
+function morph(h){
+  const half = VH() * 0.7;
+  const m = Math.min(1, Math.max(0, (h - half) / Math.max(1, VH() - half)));
+  sheet.style.setProperty('--m', m.toFixed(3));
+  sheet.classList.toggle('is-page', m >= 0.999);
+}
+
 function startGesture(y, fromHandle){
   g = {
     y0: y,
@@ -675,11 +688,13 @@ function moveGesture(e, y){
     if (want >= VH()){
       g.h = VH();
       sheet.style.height = VH() + 'px';
+      morph(VH());
       g.mode = 'scroll';              // 꼭대기 — 남은 끌기는 내용 스크롤로 넘긴다
       g.y0 = y;
     } else {
       g.h = Math.round(want);
       sheet.style.height = g.h + 'px';
+      morph(g.h);
     }
     return;
   }
@@ -690,6 +705,7 @@ function moveGesture(e, y){
   // collapse — 끝까지 내리면 0 까지 줄어든다(닫히는 느낌)
   g.h = Math.max(0, Math.round(g.h0 - dy));
   sheet.style.height = g.h + 'px';
+  morph(g.h);
 }
 
 function endGesture(){
@@ -710,6 +726,7 @@ function endGesture(){
   const h = VH() - gg.h < 6 ? VH() : gg.h;
   sheet.style.height = h + 'px';
   sheet.classList.toggle('is-full', h === VH());
+  morph(h);
 }
 
 const handle = $('#sheetHandle');
