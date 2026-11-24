@@ -4,134 +4,126 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>WebPost</title>
-<meta name="description" content="아주 짧은 기록. 하루에 한 줄이면 충분하다.">
+<meta name="description" content="아주 짧은 기록.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme:light)">
 <meta name="theme-color" content="#101114" media="(prefers-color-scheme:dark)">
 <meta property="og:title" content="WebPost">
 <meta property="og:description" content="아주 짧은 기록.">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23B22222'/><rect x='8' y='9' width='16' height='3' rx='1.5' fill='%23fff'/><rect x='8' y='15' width='16' height='2.4' rx='1.2' fill='%23ffffffbb'/><rect x='8' y='20' width='9' height='2.4' rx='1.2' fill='%23ffffffbb'/></svg>">
-<script>/* 테마는 그리기 전에 정한다(깜빡임 방지) */
+<script>/* 테마는 그리기 전에 정한다 */
 (function(){try{var t=localStorage.getItem('webpost.theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}})();
 </script>
-<link rel="stylesheet" href="app.css?v=21">
+<link rel="stylesheet" href="app.css?v=2">
 </head>
 <body>
 
-<div class="topbar" id="topbar">
-  <header class="hd">
-    <a class="logo" href="./">WebPost<span class="logo__dot">.</span></a>
-    <div class="hd__actions">
-      <button id="themeBtn" class="iconbtn" type="button" aria-label="테마 바꾸기"></button>
-      <button id="searchBtn" class="iconbtn" type="button" aria-label="검색" aria-pressed="false">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-             stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      </button>
-      <button id="writeBtn" class="writebtn" type="button" hidden>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 5v14M5 12h14"/></svg>
-        쓰기
-      </button>
-    </div>
-  </header>
-
-  <div class="searchbar" id="searchbar" hidden>
-    <form class="searchbar__form" id="searchForm" role="search">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+<!-- ── 목록 ─────────────────────────────────────── -->
+<header class="top" id="top">
+  <a class="logo" href="./">WebPost<span class="logo__dot">.</span></a>
+  <div class="top__act">
+    <button class="icon" id="searchBtn" type="button" aria-label="검색" aria-pressed="false">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
            stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" inputmode="search" autocomplete="off" spellcheck="false"
-             placeholder="" aria-label="글 검색">
-      <button class="txtbtn" id="searchClose" type="button">닫기</button>
-    </form>
-    <div class="searchbar__info" id="searchInfo" hidden></div>
+    </button>
+    <button class="icon icon--write" id="writeBtn" type="button" aria-label="글쓰기" hidden>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
   </div>
-</div>
+</header>
 
-<div class="banner" id="banner" hidden>
-  <span id="bannerText"></span>
-  <button type="button" id="bannerBtn">설정</button>
+<div class="search" id="search" hidden>
+  <form class="search__form" id="searchForm" role="search">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+         stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" inputmode="search" autocomplete="off" spellcheck="false" aria-label="글 검색">
+    <button class="textbtn" id="searchClose" type="button">닫기</button>
+  </form>
+  <p class="search__info" id="searchInfo" hidden></p>
 </div>
 
 <main id="feed" aria-live="polite"></main>
+
 <footer class="foot">
   <span id="footCount">WebPost</span>
-  <button id="setBtn" type="button">설정</button>
+  <button class="textbtn" id="setBtn" type="button">설정</button>
 </footer>
 
-<!-- 글 자세히 -->
-<dialog id="sheet" class="sheet" aria-label="글 자세히">
-  <div class="sheet__handle" id="sheetHandle" aria-hidden="true">
-    <div class="sheet__grip"></div>
+<!-- ── 글 ───────────────────────────────────────── -->
+<section class="view" id="postView" aria-hidden="true" aria-label="글">
+  <header class="bar">
+    <button class="icon" id="backBtn" type="button" aria-label="뒤로">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>
+    </button>
+    <time class="bar__when" id="postDate"></time>
+    <button class="icon" id="moreBtn" type="button" aria-label="더 보기" aria-expanded="false">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+    </button>
+  </header>
+  <div class="view__scroll" id="postScroll">
+    <article class="article">
+      <h1 class="article__title" id="postTitle"></h1>
+      <div class="article__body" id="postBody"></div>
+    </article>
   </div>
-  <div class="sheet__inner" id="sheetInner">
-    <span class="sheet__when" id="sheetWhen"></span>
-    <h2 class="sheet__title" id="sheetTitle"></h2>
-    <div class="sheet__body" id="sheetBody"></div>
+  <div class="menu" id="postMenu" hidden>
+    <button type="button" data-act="copy">링크 복사</button>
+    <button type="button" data-act="edit" data-author>수정</button>
+    <button type="button" data-act="del" data-author class="menu__del">삭제</button>
   </div>
-  <div class="sheet__foot">
-    <div class="sheet__actions" id="sheetActions" hidden>
-      <button type="button" data-act="copy">링크 복사</button>
-      <button type="button" data-act="edit" data-author hidden>수정</button>
-      <button type="button" data-act="del" data-author class="danger" hidden>삭제</button>
-    </div>
-  </div>
-</dialog>
+</section>
 
-<!-- 글쓰기 -->
-<section class="editor" id="editor" hidden aria-label="글쓰기">
-  <div class="editor__bar">
-    <button class="txtbtn" id="cancelBtn" type="button">취소</button>
-    <span class="editor__count" id="count">0자</span>
-    <button class="savebtn" id="saveBtn" type="button">올리기</button>
-  </div>
-  <div class="editor__scroll">
-    <div class="daterow">
-      <input type="date" id="dateInput" aria-label="날짜">
-      <button class="mini" id="todayBtn" type="button">오늘</button>
-      <button class="mini" id="photoBtn" type="button">사진</button>
-      <input type="file" id="photoFile" accept="image/*" hidden>
+<!-- ── 쓰기 ─────────────────────────────────────── -->
+<section class="view view--up" id="editor" aria-hidden="true" aria-label="글쓰기">
+  <header class="bar">
+    <button class="textbtn" id="cancelBtn" type="button">취소</button>
+    <span class="bar__count" id="count"></span>
+    <button class="savebtn" id="saveBtn" type="button">저장</button>
+  </header>
+  <div class="edit">
+    <textarea class="edit__title" id="titleInput" rows="1" placeholder="제목" enterkeyhint="next"></textarea>
+    <div class="edit__meta">
+      <input class="dateinput" type="date" id="dateInput" aria-label="날짜">
+      <button class="chipbtn" id="todayBtn" type="button">오늘</button>
+      <button class="chipbtn" id="photoBtn" type="button">사진</button>
     </div>
     <div class="draftnote" id="draftNote" hidden>
       <span>작성 중이던 초안을 불러왔어요</span>
       <button type="button" id="clearDraft">지우기</button>
     </div>
-    <textarea class="editor__title" id="titleInput" rows="1" placeholder="제목"
-              enterkeyhint="next" spellcheck="false"></textarea>
-    <textarea class="editor__body" id="bodyInput" rows="6" placeholder="무슨 일이 있었나요?"
-              enterkeyhint="enter"></textarea>
-    <p class="editor__hint">**굵게** · *기울임* · &gt; 인용 · - 목록 · 사진은 <b>사진</b> 버튼으로</p>
+    <textarea class="edit__body" id="bodyInput" placeholder="무슨 일이 있었나요?" enterkeyhint="enter"></textarea>
   </div>
+  <input type="file" id="photoFile" accept="image/*" hidden>
 </section>
 
-<!-- 설정 -->
-<dialog id="settings" class="set" aria-label="설정">
-  <div class="set__inner">
-    <div class="sheet__grip" aria-hidden="true"></div>
-    <div class="set__head"><b>설정</b><button type="button" id="setClose">닫기</button></div>
-    <div class="set__row"><span>화면</span><button id="setTheme" type="button">밝게</button></div>
-    <div class="set__row"><span>글 <b id="setCount">0</b>편</span>
-      <button id="exportBtn" type="button">JSON 내보내기</button></div>
-    <div class="set__row"><span>가지고 있는 글</span><button id="importBtn" type="button">JSON 가져오기</button></div>
+<!-- ── 설정 ─────────────────────────────────────── -->
+<dialog class="setup" id="settings" aria-label="설정">
+  <div class="setup__in">
+    <div class="setup__head"><b>설정</b><button class="textbtn" id="setClose" type="button">닫기</button></div>
+    <div class="row"><span>화면</span><button class="chipbtn" id="setTheme" type="button">밝게</button></div>
+    <div class="row"><span>글 <b id="setCount">0</b>편</span>
+      <button class="chipbtn" id="exportBtn" type="button">JSON 내보내기</button></div>
+    <div class="row"><span>가지고 있는 글</span><button class="chipbtn" id="importBtn" type="button">JSON 가져오기</button></div>
 
-    <p class="set__h">저장소 (GitHub)</p>
+    <p class="setup__h">저장소 (GitHub)</p>
     <label for="ghOwner">아이디</label>
     <input id="ghOwner" autocomplete="off" spellcheck="false" placeholder="yousungcake-wq">
     <label for="ghRepo">저장소</label>
     <input id="ghRepo" autocomplete="off" spellcheck="false" placeholder="webpost">
     <label for="ghToken">토큰 (Contents: Read and write)</label>
-    <input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_… / github_pat_…">
-    <button class="set__test" id="ghTest" type="button">연결 확인</button>
-    <button class="set__save" id="ghSave" type="button">저장</button>
-    <p class="set__note">비우고 저장하면 이 기기의 로컬 저장으로 돌아가요. 토큰은 이 브라우저에만 있고
-      서버로 가지 않아요 — 대신 이 기기를 잃으면 같이 잃는다고 보면 돼요.</p>
-    <p class="set__note" id="setMode"></p>
+    <input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
+    <button class="setup__test" id="ghTest" type="button">연결 확인</button>
+    <button class="setup__save" id="ghSave" type="button">저장</button>
+    <p class="setup__note" id="setMode"></p>
     <input id="importFile" type="file" accept="application/json,.json" hidden>
   </div>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=21"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>
