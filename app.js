@@ -554,6 +554,8 @@ function openPost(id, hash){
     requestAnimationFrame(() => sheet.classList.add('is-open'));
   }
   // 매번 70%에서 시작. 짧은 글은 내용만큼만, 긴 글은 내리면 화면 끝까지.
+  sheet.style.height = '';          // 지난번 끌기의 인라인 높이가 남아 있으면 지운다
+  sheet.style.transform = '';
   sheet.classList.remove('is-full');
   sheet.classList.add('is-fit');
   const inner = $('#sheetInner');
@@ -625,62 +627,127 @@ $('#sheetActions').addEventListener('click', async e => {
   }
 });
 
-/* 시트 끌어내리기 — 위로는 그대로, 아래로는 24px '걸린' 뒤에 따라온다.
-   반쯤 내려놓으면 닫히지 않고 70%로 접히고, 더 내리면 닫힌다. */
+/* 시트 끌기 — 손가락을 따라 높이가 변한다.
+   70%에서 위로 올리면 시트가 손끝까지 올라오고, 꼭대기에 닿으면 그 나머지가
+   내용 스크롤로 자연스럽게 넘어간다. 아래로 내리면 70%로 접히고, 더 내리면 닫힌다.
+   (예전엔 스크롤이 6px 나면 클래스로 '뿅' 바꿔서 뚝 달라붙는 것처럼 보였다) */
 const sheetInner = $('#sheetInner');
-let dragging = false, startY = 0, dy = 0;
-const SLACK = 24;
+const HALF = () => Math.round(window.innerHeight * 0.7);
+const FULL = () => window.innerHeight;
 
-function dragStart(y){
-  if (sheet.classList.contains('is-fit')) return;      // 짧은 글은 끌어내릴 것도 없다
-  dragging = true; startY = y; dy = 0;
+let g = null;
+
+function startGesture(y, fromHandle){
+  if (sheet.classList.contains('is-fit')) return;   // 짧은 글은 키울 것이 없다
+  const h = sheet.getBoundingClientRect().height;
+  g = {
+    y0: y,
+    h0: h,
+    h,
+    extra: 0,
+    scroll0: fromHandle ? 0 : sheetInner.scrollTop,
+    mode: 'pending'
+  };
+  sheet.classList.remove('is-fit');
   sheet.style.transition = 'none';
 }
-function dragMove(y){
-  if (!dragging) return;
-  const d = y - startY;
-  if (d <= 0) return;
-  dy = d > SLACK ? (d - SLACK) * 0.92 : 0;
-  sheet.style.transform = `translateY(${Math.round(dy)}px)`;
+
+function moveGesture(e, y){
+  if (!g) return;
+  const dy = y - g.y0;
+
+  if (g.mode === 'pending'){
+    if (Math.abs(dy) < 5) return;
+    if (g.scroll0 > 0){ g.mode = 'native'; return; }   // 이미 읽던 중 — 내용 스크롤
+    g.mode = dy < 0 ? 'expand' : 'collapse';
+  }
+  if (g.mode === 'native') return;                     // 브라우저 스크롤에 맡긴다
+  if (e && e.cancelable) e.preventDefault();
+
+  if (g.mode === 'expand'){
+    const want = g.h0 - dy;                            // 위로 올린 만큼 커진다
+    if (want >= FULL()){
+      sheet.style.height = FULL() + 'px';
+      g.h = FULL();
+      g.mode = 'scroll';                               // 꼭대기 도달 → 내용 스크롤로 넘김
+      g.y0 = y;
+    } else {
+      g.h = Math.max(HALF(), Math.round(want));
+      sheet.style.height = g.h + 'px';
+    }
+    return;
+  }
+  if (g.mode === 'scroll'){
+    sheetInner.scrollTop = -(y - g.y0);
+    return;
+  }
+  if (g.mode === 'collapse'){
+    const want = g.h0 - dy;                            // 아래로 내린 만큼 작아진다
+    if (want <= HALF()){
+      sheet.style.height = HALF() + 'px';
+      g.h = HALF();
+      g.extra = HALF() - want;                         // 여분은 시트째로 끌어내린다
+      sheet.style.transform = `translateY(${Math.min(g.extra, 180)}px)`;
+    } else {
+      g.extra = 0;
+      sheet.style.transform = '';
+      g.h = Math.min(FULL(), Math.round(want));
+      sheet.style.height = g.h + 'px';
+    }
+  }
 }
-function dragEnd(){
-  if (!dragging) return;
-  dragging = false;
+
+function endGesture(){
+  if (!g) return;
+  const gg = g;
+  g = null;
   sheet.style.transition = '';
   sheet.style.transform = '';
-  const wasFull = sheet.classList.contains('is-full');
-  if (dy > 140){ closePost(); return; }
-  if (wasFull && dy > 44){
-    sheet.classList.remove('is-full');
-    sheet.classList.add('is-fit');   // 다시 70% — 내용이 넘치면 그 높이로
-    requestAnimationFrame(() => {
-      const fits = sheetInner.scrollHeight <= sheetInner.clientHeight + 4;
-      sheet.classList.toggle('is-fit', fits);
-    });
+
+  if (gg.mode === 'pending'){ sheet.style.height = ''; return; }
+  if (gg.mode === 'collapse' && gg.extra > 110){      // 충분히 끌어내렸으면 닫기
+    sheet.style.height = '';
+    closePost();
+    return;
   }
-  dy = 0;
+
+  const toFull = gg.mode === 'scroll' || gg.h > (HALF() + FULL()) / 2;
+  const target = toFull ? FULL() : HALF();
+
+  sheet.classList.toggle('is-full', toFull);
+  if (!toFull) sheetInner.scrollTop = 0;
+
+  // 지금 높이를 붙잡아 두고 다음 프레임에 목표로 — 그래야 튀지 않고 이어진다
+  sheet.style.height = gg.h + 'px';
+  requestAnimationFrame(() => { sheet.style.height = target + 'px'; });
+  setTimeout(() => { sheet.style.height = ''; }, 280);
 }
 
 const handle = $('#sheetHandle');
-handle.addEventListener('touchstart', e => dragStart(e.touches[0].clientY), { passive:true });
-handle.addEventListener('touchmove', e => dragMove(e.touches[0].clientY), { passive:true });
-handle.addEventListener('touchend', dragEnd);
-handle.addEventListener('mousedown', e => { e.preventDefault(); dragStart(e.clientY); });
+handle.addEventListener('touchstart', e => startGesture(e.touches[0].clientY, true), { passive:true });
+sheetInner.addEventListener('touchstart', e => startGesture(e.touches[0].clientY, false), { passive:true });
 
-sheetInner.addEventListener('touchstart', e => {
-  if (sheetInner.scrollTop <= 0) dragStart(e.touches[0].clientY);
-}, { passive:true });
-sheetInner.addEventListener('touchmove', e => {
-  if (dragging) dragMove(e.touches[0].clientY);
-}, { passive:true });
-sheetInner.addEventListener('touchend', dragEnd);
+const onTouchMove = e => {
+  if (!g) return;
+  moveGesture(e, e.touches[0].clientY);
+};
+sheet.addEventListener('touchmove', onTouchMove, { passive:false });
+sheet.addEventListener('touchend', endGesture);
+sheet.addEventListener('touchcancel', endGesture);
 
-addEventListener('mousemove', e => { if (dragging) dragMove(e.clientY); });
-addEventListener('mouseup', dragEnd);
+/* 데스크톱: 손잡이를 마우스로 끌 수 있게 */
+handle.addEventListener('mousedown', e => {
+  e.preventDefault();
+  startGesture(e.clientY, true);
+  const mv = ev => moveGesture(ev, ev.clientY);
+  const up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); endGesture(); };
+  addEventListener('mousemove', mv);
+  addEventListener('mouseup', up);
+});
 
-/* 읽으려고 내리면 화면 끝까지 올라간다 */
+/* 휠·트랙패드로 내리면 (터치가 아니라 끌기가 없을 때) 그때는 바로 펼친다 */
 sheetInner.addEventListener('scroll', () => {
-  if (sheetInner.scrollTop > 6 && !sheet.classList.contains('is-full')){
+  if (!g && sheetInner.scrollTop > 4 && !sheet.classList.contains('is-full')){
     sheet.classList.remove('is-fit');
     sheet.classList.add('is-full');
   }
