@@ -54,6 +54,16 @@ const author = remote || !staticHost;                            // 파일로 �
 
 const state = { posts: [], q: '', shown: 0, loading: true, openedId: null };
 
+/* 토큰이 막혔을 때 조용히 실패하지 않는다 — 화면 위에 계속 말해 둔다 */
+let ghError = null;
+function showBanner(msg){
+  const b = $('#banner'), t = $('#bannerText');
+  if (!b || !t) return;
+  t.textContent = msg;
+  b.hidden = false;
+}
+function hideBanner(){ const b = $('#banner'); if (b) b.hidden = true; }
+
 function normalize(list){
   return (Array.isArray(list) ? list : [])
     .filter(p => p && p.b !== undefined)
@@ -70,15 +80,23 @@ function normalize(list){
 function sortNewest(a, b){ return b.d.localeCompare(a.d) || (b.c - a.c); }
 
 async function loadPosts(){
-  // 배포된 사이트에서는 모두가 posts.json 을 읽는다(글쓴이도). 파일로 열었을 때만
-  // 이 브라우저(localStorage)를 쓴다 — 미리보기와 배포본이 서로를 덮지 않게.
+  // 배포된 사이트: 독자는 posts.json(CDN)을, 글쓴이는 GitHub API 를 읽는다.
+  // API 를 쓰는 이유는 하나다 — CDN 은 방금 쓴 글을 40~60초 동안 옛 것으로 준다.
+  // 옛 목록을 읽고 그 위에 덮어쓰면 방금 지운 글이 되살아난다(실제로 그랬다).
+  if (remote){
+    try {
+      const { posts } = await ghRead();
+      return normalize(posts);
+    } catch (e) {
+      ghError = e.message;
+      showBanner('GitHub 연결에 문제가 있어요 — ' + e.message);
+      // 열쇠가 막혀도 읽기는 되게: 캐시된 목록으로 물러선다
+      try { return normalize(await readStatic()); } catch { return []; }
+    }
+  }
   if (staticHost){
     try {
-      const r = await fetch('./posts.json?ts=' + Date.now(), { cache:'no-store' });
-      if (r.status === 404) return [];
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const d = await r.json();
-      return normalize(Array.isArray(d) ? d : (d && d.posts) || []);
+      return normalize(await readStatic());
     } catch (e) {
       toast('글을 불러오지 못했어요 — ' + e.message);
       return [];
@@ -88,41 +106,90 @@ async function loadPosts(){
   return normalize(local || SEED);        // [] 는 '다 지웠다'는 뜻이지 '없음'이 아니다
 }
 
+async function readStatic(){
+  const r = await fetch('./posts.json?ts=' + Date.now(), { cache:'no-store' });
+  if (r.status === 404) return [];
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const d = await r.json();
+  return Array.isArray(d) ? d : (d && d.posts) || [];
+}
+
+/* ── GitHub 쓰기 ───────────────────────────────────────────────────
+   규칙: **파일을 새로 읽고 → 그 위에 한 가지 동작만 적용하고 → 쓴다.**
+   화면이 들고 있는 목록을 파일에 덮어쓰지 않는다. 그래야 캐시된 옛 화면에서
+   지운 글이 되살아나지 않는다. */
 const b64 = str => {
   const bytes = new TextEncoder().encode(str);
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin);
 };
+const unb64 = s => new TextDecoder().decode(
+  Uint8Array.from(atob(String(s).replace(/\s/g, '')), c => c.charCodeAt(0)));
 
-async function ghWrite(posts, message){
-  if (!GH) return;
-  const api = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path || 'posts.json'}`;
+const contentsUrl = () =>
+  `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path || 'posts.json'}`;
+
+async function ghRead(){
   const branch = GH.branch || 'main';
-  const headers = { Authorization:'Bearer ' + GH.token, Accept:'application/vnd.github+json' };
-  let sha;
+  const r = await fetch(contentsUrl() + '?ref=' + encodeURIComponent(branch) + '&cb=' + Date.now(), {
+    headers: { Authorization:'Bearer ' + GH.token, Accept:'application/vnd.github+json' },
+    cache:'no-store'
+  });
+  if (r.status === 404) return { posts: [], sha: null };
+  if (!r.ok) throw new Error('GitHub ' + r.status + ' ' + shortErr(await r.text()));
+  const d = await r.json();
   try {
-    const r = await fetch(api + '?ref=' + encodeURIComponent(branch), { headers, cache:'no-store' });
-    if (r.ok) sha = (await r.json()).sha;
-  } catch {}
+    const json = JSON.parse(unb64(d.content));
+    return { posts: Array.isArray(json) ? json : json.posts || [], sha: d.sha };
+  } catch {
+    return { posts: [], sha: d.sha };          // 파일이 깨졌으면 덮어쓰지 않고 멈춘다
+  }
+}
+
+async function ghCommit(posts, message, sha){
+  const branch = GH.branch || 'main';
   const body = {
     message: message || 'WebPost: 글 저장',
     branch,
     content: b64(JSON.stringify(posts, null, 2) + '\n')
   };
   if (sha) body.sha = sha;
-  const r = await fetch(api, {
+  const r = await fetch(contentsUrl(), {
     method:'PUT',
-    headers: { ...headers, 'Content-Type':'application/json' },
+    headers: {
+      Authorization:'Bearer ' + GH.token,
+      Accept:'application/vnd.github+json',
+      'Content-Type':'application/json'
+    },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error('GitHub ' + r.status + ' ' + (await r.text()).slice(0, 100));
+  if (!r.ok) throw new Error('GitHub ' + r.status + ' ' + shortErr(await r.text()));
 }
 
-async function persist(posts, message){
-  if (remote) await ghWrite(posts, message);
-  else lsSet(K.posts, posts);
+function shortErr(text){
+  try { const j = JSON.parse(text); return (j.message || '').slice(0, 90); }
+  catch { return String(text || '').slice(0, 90); }
 }
+
+/* apply: 목록 → 새 목록. 원격이면 최신 파일 위에서 적용한다. */
+async function change(apply, message){
+  if (remote){
+    const { posts, sha } = await ghRead();          // 방금 것을 읽고
+    const next = apply(normalize(posts)).sort(sortNewest);   // 한 동작만 얹고
+    await ghCommit(next, message, sha);              // 쓴다
+    ghError = null; hideBanner();
+    return next;
+  }
+  const base = normalize(lsGet(K.posts, null) || SEED);
+  const next = apply(base).sort(sortNewest);
+  lsSet(K.posts, next);
+  return next;
+}
+
+const addOp = p => list => list.concat([p]);
+const editOp = p => list => list.map(x => (x.id === p.id ? { ...x, ...p } : x));
+const dropOp = id => list => list.filter(x => x.id !== id);
 
 /* ── 한국어 친화 검색 (WebPaper search.html 과 같은 규칙) ────────────
    ① 모든 토큰이 들어가야 한다 ② 조사를 떼고 본다 ③ 초성만 쳐도 찾는다 */
@@ -201,6 +268,15 @@ function renderBody(body){
     out.push('<p>' + lines.map(inlineMd).join('<br>') + '</p>');
   }
   return out.join('');
+}
+
+/* 카드에 쓰는 한 줄 미리보기 — 일정 길이를 넘으면 무조건 …으로 끊는다.
+   CSS 의 line-clamp 는 줄 수만 자르고, 폰트·폭에 따라 몇 글자가 남을지 달라진다.
+   여기서 글자 수로 한 번 더 자르면 어떤 화면에서도 카드 높이가 같다. */
+const CARD_CHARS = 120;
+function preview(body){
+  const s = plain(body);
+  return s.length > CARD_CHARS ? s.slice(0, CARD_CHARS).trimEnd() + '…' : s;
 }
 
 /* 카드에 쓰는 한 줄 미리보기 — 마크다운 기호는 지우고 주소는 도메인만 남긴다 */
@@ -312,7 +388,7 @@ function postNode(p, tokens){
 
   const body = document.createElement('p');
   body.className = 'post__body';
-  body.textContent = plain(p.b);
+  body.textContent = preview(p.b);
   el.append(body);
 
   el.addEventListener('click', () => openPost(p.id, true));
@@ -470,12 +546,12 @@ $('#sheetActions').addEventListener('click', async e => {
     btn.disabled = true;
     btn.textContent = '삭제 중…';
     const before = state.posts;
-    const next = state.posts.filter(x => x.id !== p.id);
-    state.posts = next;
+    state.posts = dropOp(p.id)(state.posts);
     closePost();
     render(true);
     try {
-      await persist(next, 'WebPost: 글 삭제 — ' + (p.t || p.d));
+      state.posts = await change(dropOp(p.id), 'WebPost: 글 삭제 — ' + (p.t || p.d));
+      render(true);
       toast('삭제했어요');
     } catch (err) {
       state.posts = before; render(true); toast('삭제하지 못했어요 — ' + err.message);
@@ -569,27 +645,28 @@ async function savePost(){
   const now = Date.now();
   const wasEditing = editing;
   const before = state.posts;
-  let next;
 
-  if (wasEditing){
-    next = state.posts.map(p => p.id === wasEditing.id ? { ...p, t, b, d, u: now } : p);
-  } else {
-    next = state.posts.concat([{ id:'p' + now.toString(36), t, b, d, c: now, u: 0 }]);
-  }
-  next.sort(sortNewest);
+  // 저장할 내용 한 벌. 새 글이면 id 를 새로 만들고, 고치는 글이면 같은 id 로 덮는다.
+  const entry = wasEditing
+    ? { ...wasEditing, t, b, d, u: now }
+    : { id:'p' + now.toString(36), t, b, d, c: now, u: 0 };
+  const op = wasEditing ? editOp(entry) : addOp(entry);
 
   saveBtn.disabled = true;
   saveBtn.textContent = '저장 중…';
-  state.posts = next;
+  state.posts = op(state.posts).sort(sortNewest);   // 먼저 화면에 (즉시 반응)
   render(true);
   closeEditor(false);
 
   try {
-    await persist(next, wasEditing ? 'WebPost: 글 수정 — ' + (t || d) : 'WebPost: 새 글 — ' + (t || d));
-    toast(remote ? '저장했어요 — 사이트에 잠시 뒤 반영돼요' : '저장했어요');
+    state.posts = await change(op, wasEditing ? 'WebPost: 글 수정 — ' + (t || d)
+                                              : 'WebPost: 새 글 — ' + (t || d));
+    render(true);
+    toast(remote ? '저장했어요 — 남들 화면엔 1분쯤 뒤' : '저장했어요');
   } catch (e) {
     state.posts = before; render(true);
-    toast('저장하지 못했어요 — ' + e.message);
+    toast('저장하지 못했어요 — ' + e.message, 6000);
+    if (remote) showBanner('저장하지 못했어요 — ' + e.message);
     setTimeout(() => openEditor(wasEditing, { t, b, d }), 200);   // 쓴 글을 잃지 않는다
   } finally {
     saveBtn.disabled = false;
@@ -699,6 +776,42 @@ setDlg.addEventListener('close', () => setDlg.classList.remove('is-open'));
 setDlg.addEventListener('click', e => { if (e.target === setDlg) closeSet(); });
 $('#setClose').addEventListener('click', closeSet);
 
+/* 연결 확인 — 읽기와 쓰기 권한을 따로 본다. 글을 건드리지 않고 확인만 한다. */
+$('#ghTest').addEventListener('click', async () => {
+  const btn = $('#ghTest');
+  const owner = $('#ghOwner').value.trim();
+  const repo = $('#ghRepo').value.trim();
+  const token = $('#ghToken').value.trim();
+  if (!owner || !repo || !token){ toast('아이디·저장소·토큰을 먼저 넣어 주세요'); return; }
+  const H = { Authorization:'Bearer ' + token, Accept:'application/vnd.github+json' };
+  btn.disabled = true; btn.textContent = '확인 중…';
+  try {
+    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}?cb=${Date.now()}`,
+      { headers: H, cache:'no-store' });
+    if (!r.ok) throw new Error('저장소를 못 열었어요 (GitHub ' + r.status + ' ' + shortErr(await r.text()) + ')');
+    const info = await r.json();
+    const canWrite = !!(info.permissions && info.permissions.push);
+    const c = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/posts.json?ref=main&cb=${Date.now()}`,
+      { headers: H, cache:'no-store' });
+    let n = 0;
+    if (c.ok){
+      const d = await c.json();
+      try { const j = JSON.parse(unb64(d.content)); n = (Array.isArray(j) ? j : j.posts || []).length; } catch {}
+    }
+    if (!canWrite){
+      toast('읽기는 되는데 쓰기 권한이 없어요 — 토큰의 Contents 를 Read and write 로 바꿔 주세요', 8000);
+    } else if (!c.ok && c.status !== 404){
+      toast('저장소는 열리는데 posts.json 을 못 읽어요 (GitHub ' + c.status + ')', 6000);
+    } else {
+      toast(`연결됐어요 — ${owner}/${repo} · 글 ${n}편 · 쓰기 권한 있음`, 5000);
+    }
+  } catch (e) {
+    toast('연결 실패 — ' + e.message, 8000);
+  } finally {
+    btn.disabled = false; btn.textContent = '연결 확인';
+  }
+});
+
 $('#ghSave').addEventListener('click', () => {
   const owner = $('#ghOwner').value.trim();
   const repo = $('#ghRepo').value.trim();
@@ -729,12 +842,18 @@ $('#importFile').addEventListener('change', async e => {
   try {
     const d = JSON.parse(await f.text());
     const incoming = normalize(Array.isArray(d) ? d : d.posts || []);
-    const byId = new Map(state.posts.map(p => [p.id, p]));
-    for (const p of incoming) byId.set(p.id, p);
-    const next = Array.from(byId.values()).sort(sortNewest);
+    const merge = list => {
+      const byId = new Map(list.map(p => [p.id, p]));
+      for (const p of incoming) byId.set(p.id, p);
+      return Array.from(byId.values());
+    };
     const before = state.posts;
-    state.posts = next; render(true);
-    try { await persist(next, 'WebPost: JSON 가져오기'); toast(incoming.length + '편을 가져왔어요'); }
+    state.posts = merge(state.posts).sort(sortNewest); render(true);
+    try {
+      state.posts = await change(merge, 'WebPost: JSON 가져오기');
+      render(true);
+      toast(incoming.length + '편을 가져왔어요');
+    }
     catch (err){ state.posts = before; render(true); toast('가져오지 못했어요 — ' + err.message); }
   } catch {
     toast('JSON 을 읽을 수 없어요');
@@ -743,15 +862,17 @@ $('#importFile').addEventListener('change', async e => {
 
 /* ── 토스트 ───────────────────────────────────────────────────────── */
 let toastTimer = null;
-function toast(msg){
+function toast(msg, ms = 2600){
   const el = $('#toast');
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
 /* ── 시작 ─────────────────────────────────────────────────────────── */
+$('#bannerBtn')?.addEventListener('click', () => $('#setBtn').click());
+
 async function init(){
   paintTheme();
   if (author) $('#writeBtn').hidden = false;

@@ -14,7 +14,7 @@
 <script>/* 테마는 그리기 전에 정한다(깜빡임 방지) */
 (function(){try{var t=localStorage.getItem('webpost.theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}})();
 </script>
-<link rel="stylesheet" href="app.css?v=6">
+<link rel="stylesheet" href="app.css?v=8">
 </head>
 <body>
 
@@ -22,11 +22,11 @@
   <header class="hd">
     <a class="logo" href="./">WebPost<span class="logo__dot">.</span></a>
     <div class="hd__actions">
+      <button id="themeBtn" class="iconbtn" type="button" aria-label="테마 바꾸기"></button>
       <button id="searchBtn" class="iconbtn" type="button" aria-label="검색" aria-pressed="false">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
              stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       </button>
-      <button id="themeBtn" class="iconbtn" type="button" aria-label="테마 바꾸기"></button>
       <button id="writeBtn" class="writebtn" type="button" hidden>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -41,11 +41,16 @@
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
            stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="q" type="search" inputmode="search" autocomplete="off" spellcheck="false"
-             placeholder="검색 — 단어, 초성(ㅅㄷ), 날짜(11월)" aria-label="글 검색">
+             placeholder="" aria-label="글 검색">
       <button class="txtbtn" id="searchClose" type="button">닫기</button>
     </form>
     <div class="searchbar__info" id="searchInfo" hidden></div>
   </div>
+</div>
+
+<div class="banner" id="banner" hidden>
+  <span id="bannerText"></span>
+  <button type="button" id="bannerBtn">설정</button>
 </div>
 
 <main id="feed" aria-live="polite"></main>
@@ -85,7 +90,7 @@
       <span>작성 중이던 초안을 불러왔어요</span>
       <button type="button" id="clearDraft">지우기</button>
     </div>
-    <input class="editor__title" id="titleInput" type="text" placeholder="제목 (없어도 돼요)"
+    <input class="editor__title" id="titleInput" type="text" placeholder="제목"
            autocomplete="off" enterkeyhint="next">
     <textarea class="editor__body" id="bodyInput" rows="6" placeholder="무슨 일이 있었나요?"
               enterkeyhint="enter"></textarea>
@@ -108,8 +113,9 @@
     <input id="ghOwner" autocomplete="off" spellcheck="false" placeholder="yousungcake-wq">
     <label for="ghRepo">저장소</label>
     <input id="ghRepo" autocomplete="off" spellcheck="false" placeholder="webpost">
-    <label for="ghToken">토큰 (repo 권한)</label>
-    <input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
+    <label for="ghToken">토큰 (Contents: Read and write)</label>
+    <input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_… / github_pat_…">
+    <button class="set__test" id="ghTest" type="button">연결 확인</button>
     <button class="set__save" id="ghSave" type="button">저장</button>
     <p class="set__note">비우고 저장하면 이 기기의 로컬 저장으로 돌아가요. 토큰은 이 브라우저에만 있고
       서버로 가지 않아요 — 대신 이 기기를 잃으면 같이 잃는다고 보면 돼요.</p>
@@ -120,6 +126,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=6"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

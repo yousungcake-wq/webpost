@@ -241,3 +241,18 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
 .set__head b{font-size:15px}
 .set__head button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;
   padding:8px 4px;cursor:pointer}
+
+/* ── 경고 배너 (토큰이 막혔을 때) ─────────────────────── */
+.banner{max-width:calc(var(--maxw) - var(--pad) * 2);margin:12px auto 0;display:flex;align-items:center;
+  gap:10px;padding:10px 12px;border-radius:12px;background:var(--accent-soft);color:var(--accent-ink);
+  font-size:12.5px;line-height:1.5}
+.banner[hidden]{display:none}
+.banner span{flex:1 1 auto;min-width:0}
+.banner button{flex:0 0 auto;border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);
+  background:none;color:var(--accent-ink);font:inherit;font-size:12px;font-weight:700;
+  border-radius:9px;padding:5px 10px;cursor:pointer}
+
+.set__test{margin-top:12px;width:100%;height:40px;border:1px solid var(--line);border-radius:11px;
+  background:var(--bg);color:var(--fg);font-size:13.5px;font-weight:600;cursor:pointer}
+.set__test:hover{border-color:var(--accent);color:var(--accent-ink)}
+.set__test:disabled{opacity:.55;cursor:default}
