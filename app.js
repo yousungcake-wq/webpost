@@ -553,7 +553,15 @@ function openPost(id, hash){
     sheet.showModal();
     requestAnimationFrame(() => sheet.classList.add('is-open'));
   }
-  $('.sheet__inner', sheet).scrollTop = 0;
+  // 매번 70%에서 시작. 짧은 글은 내용만큼만, 긴 글은 내리면 화면 끝까지.
+  sheet.classList.remove('is-full');
+  sheet.classList.add('is-fit');
+  const inner = $('#sheetInner');
+  inner.scrollTop = 0;
+  requestAnimationFrame(() => {
+    const fits = inner.scrollHeight <= inner.clientHeight + 4;
+    sheet.classList.toggle('is-fit', fits);
+  });
   document.documentElement.style.overflow = 'hidden';
   if (hash) setHash('p/' + id);
 }
@@ -617,23 +625,66 @@ $('#sheetActions').addEventListener('click', async e => {
   }
 });
 
-/* 시트 드래그로 닫기 (WebPaper 와 같은 손맛) */
-let y0 = 0, dy = 0, dragging = false;
-sheet.addEventListener('touchstart', e => {
-  if ($('.sheet__inner', sheet).scrollTop > 0) return;
-  y0 = e.touches[0].clientY; dy = 0; dragging = true; sheet.style.transition = 'none';
-}, { passive:true });
-sheet.addEventListener('touchmove', e => {
+/* 시트 끌어내리기 — 위로는 그대로, 아래로는 24px '걸린' 뒤에 따라온다.
+   반쯤 내려놓으면 닫히지 않고 70%로 접히고, 더 내리면 닫힌다. */
+const sheetInner = $('#sheetInner');
+let dragging = false, startY = 0, dy = 0;
+const SLACK = 24;
+
+function dragStart(y){
+  if (sheet.classList.contains('is-fit')) return;      // 짧은 글은 끌어내릴 것도 없다
+  dragging = true; startY = y; dy = 0;
+  sheet.style.transition = 'none';
+}
+function dragMove(y){
   if (!dragging) return;
-  dy = Math.max(0, e.touches[0].clientY - y0);
-  sheet.style.transform = `translateY(${dy}px)`;
-}, { passive:true });
-sheet.addEventListener('touchend', () => {
+  const d = y - startY;
+  if (d <= 0) return;
+  dy = d > SLACK ? (d - SLACK) * 0.92 : 0;
+  sheet.style.transform = `translateY(${Math.round(dy)}px)`;
+}
+function dragEnd(){
   if (!dragging) return;
   dragging = false;
-  sheet.style.transition = ''; sheet.style.transform = '';
-  if (dy > 90) closePost();
-});
+  sheet.style.transition = '';
+  sheet.style.transform = '';
+  const wasFull = sheet.classList.contains('is-full');
+  if (dy > 140){ closePost(); return; }
+  if (wasFull && dy > 44){
+    sheet.classList.remove('is-full');
+    sheet.classList.add('is-fit');   // 다시 70% — 내용이 넘치면 그 높이로
+    requestAnimationFrame(() => {
+      const fits = sheetInner.scrollHeight <= sheetInner.clientHeight + 4;
+      sheet.classList.toggle('is-fit', fits);
+    });
+  }
+  dy = 0;
+}
+
+const handle = $('#sheetHandle');
+handle.addEventListener('touchstart', e => dragStart(e.touches[0].clientY), { passive:true });
+handle.addEventListener('touchmove', e => dragMove(e.touches[0].clientY), { passive:true });
+handle.addEventListener('touchend', dragEnd);
+handle.addEventListener('mousedown', e => { e.preventDefault(); dragStart(e.clientY); });
+
+sheetInner.addEventListener('touchstart', e => {
+  if (sheetInner.scrollTop <= 0) dragStart(e.touches[0].clientY);
+}, { passive:true });
+sheetInner.addEventListener('touchmove', e => {
+  if (dragging) dragMove(e.touches[0].clientY);
+}, { passive:true });
+sheetInner.addEventListener('touchend', dragEnd);
+
+addEventListener('mousemove', e => { if (dragging) dragMove(e.clientY); });
+addEventListener('mouseup', dragEnd);
+
+/* 읽으려고 내리면 화면 끝까지 올라간다 */
+sheetInner.addEventListener('scroll', () => {
+  if (sheetInner.scrollTop > 6 && !sheet.classList.contains('is-full')){
+    sheet.classList.remove('is-fit');
+    sheet.classList.add('is-full');
+  }
+}, { passive:true });
 
 /* ── 글쓰기 ────────────────────────────────────────────────────────── */
 const editor = $('#editor');
@@ -645,14 +696,12 @@ const chars = s => [...String(s || '')].length;
 
 function paintCount(){ countEl.textContent = chars(titleInput.value) + chars(bodyInput.value) + '자'; }
 
-function autoGrow(){
-  bodyInput.style.height = 'auto';
-  bodyInput.style.height = Math.max(bodyInput.scrollHeight, Math.round(window.innerHeight * 0.3)) + 'px';
-}
-/* 제목도 입력한 만큼 늘어난다 — 긴 제목이 한 줄에 갇혀 옆으로 밀리지 않게 */
-function autoGrowTitle(){
-  titleInput.style.height = 'auto';
-  titleInput.style.height = titleInput.scrollHeight + 'px';
+/* 제목만 높이를 늘린다. 본문은 flex 로 남는 공간을 다 쓰고 안에서 스크롤하므로
+   입력할 때마다 높이를 다시 재지 않는다(그게 커서를 따라 화면이 튀던 원인이었다). */
+function autoGrowTitle(reset){
+  if (reset) titleInput.style.height = 'auto';
+  const need = titleInput.scrollHeight;
+  if (need > titleInput.clientHeight + 1) titleInput.style.height = need + 'px';
 }
 
 let draftTimer = null;
@@ -687,8 +736,7 @@ function openEditor(post, prefill){
   editor.hidden = false;
   document.documentElement.style.overflow = 'hidden';
   paintCount();
-  autoGrowTitle();
-  autoGrow();
+  autoGrowTitle(true);
   (post || titleInput.value ? bodyInput : titleInput).focus({ preventScroll:true });
 }
 
@@ -799,7 +847,6 @@ async function addPhoto(file){
     if (!r.ok) throw new Error('GitHub ' + r.status + ' ' + shortErr(await r.text()));
     const url = `https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/${GH.branch || 'main'}/${name}`;
     insertAtCursor(bodyInput, (bodyInput.value.trim() ? '\n\n' : '') + url + '\n\n');
-    autoGrow();
     toast('사진을 올렸어요');
   } catch (e) {
     toast('사진을 올리지 못했어요 — ' + e.message, 6000);
@@ -831,12 +878,12 @@ $('#writeBtn').addEventListener('click', () => openEditor(null));
 $('#cancelBtn').addEventListener('click', () => closeEditor(false));
 $('#clearDraft').addEventListener('click', () => {
   titleInput.value = ''; bodyInput.value = ''; dateInput.value = todayStr();
-  draftNote.hidden = true; lsSet(K.draft, undefined); paintCount(); autoGrowTitle(); autoGrow(); titleInput.focus();
+  draftNote.hidden = true; lsSet(K.draft, undefined); paintCount(); autoGrowTitle(true); titleInput.focus();
 });
 $('#todayBtn').addEventListener('click', () => { dateInput.value = todayStr(); });
 saveBtn.addEventListener('click', savePost);
-titleInput.addEventListener('input', () => { paintCount(); autoGrowTitle(); saveDraft(); });
-bodyInput.addEventListener('input', () => { paintCount(); autoGrow(); saveDraft(); });
+titleInput.addEventListener('input', () => { paintCount(); autoGrowTitle(false); saveDraft(); });
+bodyInput.addEventListener('input', () => { paintCount(); saveDraft(); });
 dateInput.addEventListener('change', saveDraft);
 titleInput.addEventListener('keydown', e => {
   if (e.key === 'Enter'){ e.preventDefault(); bodyInput.focus(); }

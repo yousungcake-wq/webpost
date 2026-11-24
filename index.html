@@ -14,7 +14,7 @@
 <script>/* 테마는 그리기 전에 정한다(깜빡임 방지) */
 (function(){try{var t=localStorage.getItem('webpost.theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}})();
 </script>
-<link rel="stylesheet" href="app.css?v=12">
+<link rel="stylesheet" href="app.css?v=14">
 </head>
 <body>
 
@@ -61,11 +61,15 @@
 
 <!-- 글 자세히 -->
 <dialog id="sheet" class="sheet" aria-label="글 자세히">
-  <div class="sheet__inner">
-    <div class="sheet__grip" aria-hidden="true"></div>
+  <div class="sheet__handle" id="sheetHandle" aria-hidden="true">
+    <div class="sheet__grip"></div>
+  </div>
+  <div class="sheet__inner" id="sheetInner">
     <span class="sheet__when" id="sheetWhen"></span>
     <h2 class="sheet__title" id="sheetTitle"></h2>
     <div class="sheet__body" id="sheetBody"></div>
+  </div>
+  <div class="sheet__foot">
     <div class="sheet__actions" id="sheetActions" hidden>
       <button type="button" data-act="copy">링크 복사</button>
       <button type="button" data-act="edit" data-author hidden>수정</button>
@@ -128,6 +132,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=12"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

@@ -126,15 +126,24 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
 .foot button:hover{color:var(--fg)}
 
 /* ── 상세 시트 (WebPaper 와 같은 문법) ──────────────── */
+/* 바텀시트 — 70%로 열리고, 읽으려고 내리면 화면 끝까지 올라간다.
+   하단바(링크·수정·삭제)는 스크롤 밖에 두어 항상 붙어 있다. */
 .sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:100%;max-width:var(--maxw);border:0;padding:0;
-  border-radius:20px 20px 0 0;background:var(--bg);color:var(--fg);max-height:88dvh;
+  height:70dvh;max-height:100dvh;display:flex;flex-direction:column;
+  border-radius:20px 20px 0 0;background:var(--bg);color:var(--fg);overscroll-behavior:contain;
   box-shadow:0 -6px 24px rgba(0,0,0,.16);transform:translateY(100%);
-  transition:transform .26s cubic-bezier(.2,.8,.2,1)}
+  transition:transform .26s cubic-bezier(.2,.8,.2,1),height .22s cubic-bezier(.2,.8,.2,1)}
 .sheet.is-open{transform:translateY(0)}
+.sheet.is-fit{height:auto;max-height:70dvh}        /* 짧은 글은 내용만큼만 */
+.sheet.is-full{height:100dvh;max-height:100dvh;border-radius:14px 14px 0 0}
 .sheet::backdrop{background:rgba(0,0,0,.4)}
-.sheet__inner{padding:8px 20px calc(22px + var(--safe-b));max-height:88dvh;overflow-y:auto;
-  overscroll-behavior:contain}
-.sheet__grip{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 14px}
+.sheet__handle{flex:0 0 auto;padding:9px 0 7px;touch-action:none;cursor:grab}
+.sheet__inner{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:0 20px 18px;-webkit-overflow-scrolling:touch}
+.sheet__foot{flex:0 0 auto;padding:10px 20px calc(18px + var(--safe-b));
+  border-top:1px solid var(--line);background:var(--bg);
+  box-shadow:0 -10px 18px -14px rgba(0,0,0,.35)}
+.sheet__grip{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto}
 .sheet__when{font-size:var(--font-caption);color:var(--muted);font-variant-numeric:tabular-nums}
 .sheet__title{font-size:22px;font-weight:750;line-height:1.38;margin:6px 0 12px;letter-spacing:-.015em}
 .sheet__title:empty{display:none}
@@ -151,8 +160,7 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
   word-break:break-all}
 .sheet__body img{display:block;width:100%;height:auto;border-radius:12px;margin:2px 0 15px}
 
-.sheet__actions{display:flex;gap:8px;margin-top:22px;padding-top:16px;border-top:1px solid var(--line);
-  flex-wrap:wrap}
+.sheet__actions{display:flex;gap:8px;flex-wrap:wrap}
 .sheet__actions button{min-height:38px;padding:0 14px;border:1px solid var(--line);border-radius:19px;
   background:var(--bg);color:var(--muted);font:inherit;font-size:var(--font-caption);font-weight:600;
   cursor:pointer}
@@ -166,8 +174,9 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
 .editor{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;
   height:100dvh}
 .editor[hidden]{display:none}
-.editor__bar{display:flex;align-items:center;gap:10px;padding:8px 12px;min-height:56px;
-  border-bottom:1px solid var(--line);flex:0 0 auto}
+.editor__bar{display:flex;align-items:center;gap:10px;min-height:56px;flex:0 0 auto;
+  border-bottom:1px solid var(--line);
+  padding:8px max(12px, calc((100% - var(--maxw)) / 2));}
 .editor__count{flex:1 1 auto;text-align:center;font-size:12px;color:var(--muted);
   font-variant-numeric:tabular-nums}
 .txtbtn{border:0;background:none;color:var(--muted);font-size:15px;cursor:pointer;padding:8px 10px;
@@ -179,8 +188,8 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
 .savebtn:hover{filter:brightness(1.08)}
 .savebtn:disabled{opacity:.4;cursor:default}
 
-.editor__scroll{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;
-  padding:16px var(--pad) calc(60px + var(--safe-b));max-width:var(--maxw);margin:0 auto;width:100%}
+.editor__scroll{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+  padding:16px var(--pad) calc(12px + var(--safe-b));max-width:var(--maxw);margin:0 auto;width:100%}
 .daterow{display:flex;align-items:center;gap:8px;margin-bottom:16px}
 .daterow input[type="date"]{height:34px;padding:0 10px;border:0;border-radius:10px;background:var(--accent-soft);
   color:var(--accent-ink);font:inherit;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
@@ -201,9 +210,9 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
   outline:none;resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;
   word-break:keep-all;max-height:8.6em}
 .editor__title::placeholder{color:color-mix(in srgb,var(--muted) 62%,var(--bg))}
-.editor__body{display:block;width:100%;min-height:30vh;border:0;background:none;color:var(--fg);
-  font:inherit;font-size:16px;line-height:1.75;padding:0;resize:none;outline:none;overflow:hidden;
-  white-space:pre-wrap;overflow-wrap:anywhere}
+.editor__body{display:block;width:100%;flex:1 1 auto;min-height:0;border:0;background:none;
+  color:var(--fg);font:inherit;font-size:16px;line-height:1.75;padding:0;resize:none;outline:none;
+  overflow-y:auto;overscroll-behavior:contain;white-space:pre-wrap;overflow-wrap:anywhere}
 .editor__body::placeholder{color:color-mix(in srgb,var(--muted) 62%,var(--bg))}
 .editor__hint{margin-top:20px;font-size:11.5px;color:var(--muted);line-height:1.7;opacity:.9}
 
