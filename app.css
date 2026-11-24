@@ -262,3 +262,7 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
 
 .mini:disabled{opacity:.55;cursor:default}
 .daterow{flex-wrap:wrap;row-gap:8px}
+
+/* 피드 카드의 그림 미리보기 */
+.post__thumb{display:block;width:100%;height:auto;max-height:300px;object-fit:cover;
+  margin-top:11px;border-radius:12px;background:var(--chip)}

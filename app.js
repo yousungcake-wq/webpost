@@ -264,6 +264,7 @@ function renderBody(body){
     const block = raw.replace(/\s+$/, '');
     if (!block.trim()) continue;
     const lines = block.split('\n');
+
     if (lines.every(l => /^>\s?/.test(l))){
       out.push('<blockquote>' + lines.map(l => inlineMd(l.replace(/^>\s?/, ''))).join('<br>') + '</blockquote>');
       continue;
@@ -272,16 +273,33 @@ function renderBody(body){
       out.push('<ul>' + lines.map(l => '<li>' + inlineMd(l.replace(/^[-*]\s+/, '')) + '</li>').join('') + '</ul>');
       continue;
     }
-    if (lines.length === 1 && /^https?:\/\/\S+$/.test(block.trim())){
-      const u = block.trim();
-      out.push(isImageUrl(u)
-        ? `<figure><img src="${u}" alt="" loading="lazy"></figure>`
-        : `<p><a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a></p>`);
-      continue;
+
+    /* 이미지 주소는 '그 줄 하나'만 떼어내 그림으로 만든다. 같은 문단에 설명이
+       붙어 있어도(주소 다음 줄에 캡션을 쓴 경우) 그림이 살아남는다. */
+    let buf = [];
+    const flush = () => {
+      if (buf.length) out.push('<p>' + buf.map(inlineMd).join('<br>') + '</p>');
+      buf = [];
+    };
+    for (const line of lines){
+      const t = line.trim();
+      if (isImageUrl(t)){ flush(); out.push(`<figure><img src="${t}" alt="" loading="lazy"></figure>`); }
+      else buf.push(line);
     }
-    out.push('<p>' + lines.map(inlineMd).join('<br>') + '</p>');
+    flush();
   }
   return out.join('');
+}
+
+/* 글에서 첫 그림 주소 하나 — 피드 카드의 미리보기에 쓴다 */
+function firstImage(body){
+  for (const line of String(body || '').split('\n')){
+    const t = line.trim();
+    const m = t.match(/^!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)$/);
+    const u = m ? m[1] : t;
+    if (isImageUrl(u)) return u;
+  }
+  return '';
 }
 
 /* 카드에 쓰는 한 줄 미리보기 — 일정 길이를 넘으면 무조건 …으로 끊는다.
@@ -296,7 +314,8 @@ function preview(body){
 /* 카드에 쓰는 한 줄 미리보기 — 마크다운 기호는 지우고 주소는 도메인만 남긴다 */
 function plain(b){
   return String(b || '')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '사진')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/https?:\/\/\S+\.(?:png|jpe?g|gif|webp|avif)\S*/gi, ' ')
     .replace(/\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, '$1')
     .replace(/\]\(/g, ' ')
     .replace(/[[\]]/g, '')
@@ -407,6 +426,18 @@ function postNode(p, tokens){
   body.className = 'post__body';
   body.textContent = preview(p.b);
   el.append(body);
+
+  const thumbSrc = firstImage(p.b);
+  if (thumbSrc){
+    const img = document.createElement('img');
+    img.className = 'post__thumb';
+    img.src = thumbSrc;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.addEventListener('error', () => img.remove());
+    el.append(img);
+    el.style.containIntrinsicSize = 'auto 400px';   // 그림이 있는 카드는 높다(스크롤 튐 방지)
+  }
 
   el.addEventListener('click', () => openPost(p.id, true));
   el.addEventListener('keydown', e => {
@@ -767,7 +798,7 @@ async function addPhoto(file){
     });
     if (!r.ok) throw new Error('GitHub ' + r.status + ' ' + shortErr(await r.text()));
     const url = `https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/${GH.branch || 'main'}/${name}`;
-    insertAtCursor(bodyInput, (bodyInput.value.trim() ? '\n\n' : '') + url + '\n');
+    insertAtCursor(bodyInput, (bodyInput.value.trim() ? '\n\n' : '') + url + '\n\n');
     autoGrow();
     toast('사진을 올렸어요');
   } catch (e) {
