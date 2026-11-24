@@ -232,7 +232,10 @@ function inlineMd(s){
   let h = escHtml(s);
   const imgs = [];
   h = h.replace(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, (m, alt, src) => {
-    imgs.push(`<img src="${src}" alt="${alt}" loading="lazy">`);
+    // 이미지 주소가 아니면(사진 페이지 주소 등) 깨진 그림 대신 링크로 보여준다
+    imgs.push(isImageUrl(src)
+      ? `<img src="${src}" alt="${escHtml(alt)}" loading="lazy">`
+      : `<a href="${src}" target="_blank" rel="noopener noreferrer">${escHtml(alt || src)}</a>`);
     return `\u0000${imgs.length - 1}\u0000`;
   });
   h = h.replace(/(https?:\/\/[^\s<]+)/g, (u) => {
@@ -261,8 +264,11 @@ function renderBody(body){
       out.push('<ul>' + lines.map(l => '<li>' + inlineMd(l.replace(/^[-*]\s+/, '')) + '</li>').join('') + '</ul>');
       continue;
     }
-    if (lines.length === 1 && isImageUrl(block)){
-      out.push(`<figure><img src="${block.trim()}" alt="" loading="lazy"></figure>`);
+    if (lines.length === 1 && /^https?:\/\/\S+$/.test(block.trim())){
+      const u = block.trim();
+      out.push(isImageUrl(u)
+        ? `<figure><img src="${u}" alt="" loading="lazy"></figure>`
+        : `<p><a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a></p>`);
       continue;
     }
     out.push('<p>' + lines.map(inlineMd).join('<br>') + '</p>');
@@ -283,6 +289,9 @@ function preview(body){
 function plain(b){
   return String(b || '')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '사진')
+    .replace(/\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, '$1')
+    .replace(/\]\(/g, ' ')
+    .replace(/[[\]]/g, '')
     .replace(/https?:\/\/([^\s/)]+)\S*/g, '$1')
     .replace(/^\s*>\s?/gm, '')
     .replace(/^\s*[-*]\s+/gm, '')
@@ -483,6 +492,15 @@ function openPost(id, hash){
   sheetWhen.textContent = dateFull(p.d);
   sheetTitle.textContent = p.t;
   sheetBody.innerHTML = renderBody(p.b);
+  sheetBody.querySelectorAll('img').forEach(img => {
+    img.addEventListener('error', () => {
+      const a = document.createElement('a');
+      a.href = img.getAttribute('src');
+      a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.textContent = img.getAttribute('src');
+      img.replaceWith(a);
+    });
+  });
 
   const acts = $('#sheetActions');
   acts.hidden = false;
@@ -680,6 +698,95 @@ async function savePost(){
     saveBtn.textContent = wasEditing ? '고치기' : '올리기';
   }
 }
+
+/* ── 사진 ──────────────────────────────────────────────────────────
+   기기에서 고른 사진을 줄여서 저장소 img/ 에 올리고, 본문에 주소를 넣는다.
+   남의 이미지 호스트에 기대지 않는다 — 주소가 죽으면 글이 같이 죽는다. */
+function b64Bytes(bytes){
+  let bin = '';
+  const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH){
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  }
+  return btoa(bin);
+}
+
+function shrink(file, max = 1600, q = 0.85){
+  return new Promise((res, rej) => {
+    if (file.size > 25 * 1024 * 1024) return rej(new Error('사진이 너무 커요(25MB 이하)'));
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k));
+      c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? res(b) : rej(new Error('변환 실패')), 'image/jpeg', q);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('이미지를 읽을 수 없어요')); };
+    img.src = url;
+  });
+}
+
+function insertAtCursor(el, text){
+  const a = el.selectionStart ?? el.value.length;
+  const b = el.selectionEnd ?? a;
+  el.value = el.value.slice(0, a) + text + el.value.slice(b);
+  el.selectionStart = el.selectionEnd = a + text.length;
+  el.dispatchEvent(new Event('input', { bubbles:true }));
+}
+
+async function addPhoto(file){
+  if (!file) return;
+  if (!remote){ toast('사진 올리기는 저장소 연결(토큰)이 필요해요', 4000); return; }
+  const btn = $('#photoBtn');
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = '올리는 중…';
+  try {
+    const blob = await shrink(file);
+    const name = 'img/' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6) + '.jpg';
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${name}`, {
+      method:'PUT',
+      headers: { Authorization:'Bearer ' + GH.token, Accept:'application/vnd.github+json',
+                 'Content-Type':'application/json' },
+      body: JSON.stringify({ message:'WebPost: 사진 ' + name, branch: GH.branch || 'main',
+                             content: b64Bytes(bytes) })
+    });
+    if (!r.ok) throw new Error('GitHub ' + r.status + ' ' + shortErr(await r.text()));
+    const url = `https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/${GH.branch || 'main'}/${name}`;
+    insertAtCursor(bodyInput, (bodyInput.value.trim() ? '\n\n' : '') + url + '\n');
+    autoGrow();
+    toast('사진을 올렸어요');
+  } catch (e) {
+    toast('사진을 올리지 못했어요 — ' + e.message, 6000);
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
+}
+
+$('#photoBtn').addEventListener('click', () => $('#photoFile').click());
+$('#photoFile').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  await addPhoto(f);
+});
+/* 붙여넣기로도 — 데스크톱에서 캡처를 그냥 붙이는 쪽이 빠르다 */
+bodyInput.addEventListener('paste', e => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const it of items){
+    if (it.kind === 'file' && it.type.startsWith('image/')){
+      e.preventDefault();
+      addPhoto(it.getAsFile());
+      return;
+    }
+  }
+});
 
 $('#writeBtn').addEventListener('click', () => openEditor(null));
 $('#cancelBtn').addEventListener('click', () => closeEditor(false));

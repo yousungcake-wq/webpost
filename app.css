@@ -259,3 +259,6 @@ mark{padding:0 1px;border-radius:2px;background:color-mix(in srgb,var(--accent) 
   background:var(--bg);color:var(--fg);font-size:13.5px;font-weight:600;cursor:pointer}
 .set__test:hover{border-color:var(--accent);color:var(--accent-ink)}
 .set__test:disabled{opacity:.55;cursor:default}
+
+.mini:disabled{opacity:.55;cursor:default}
+.daterow{flex-wrap:wrap;row-gap:8px}

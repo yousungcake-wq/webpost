@@ -14,7 +14,7 @@
 <script>/* 테마는 그리기 전에 정한다(깜빡임 방지) */
 (function(){try{var t=localStorage.getItem('webpost.theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}})();
 </script>
-<link rel="stylesheet" href="app.css?v=9">
+<link rel="stylesheet" href="app.css?v=10">
 </head>
 <body>
 
@@ -85,6 +85,8 @@
     <div class="daterow">
       <input type="date" id="dateInput" aria-label="날짜">
       <button class="mini" id="todayBtn" type="button">오늘</button>
+      <button class="mini" id="photoBtn" type="button">사진</button>
+      <input type="file" id="photoFile" accept="image/*" hidden>
     </div>
     <div class="draftnote" id="draftNote" hidden>
       <span>작성 중이던 초안을 불러왔어요</span>
@@ -94,7 +96,7 @@
               enterkeyhint="next" spellcheck="false"></textarea>
     <textarea class="editor__body" id="bodyInput" rows="6" placeholder="무슨 일이 있었나요?"
               enterkeyhint="enter"></textarea>
-    <p class="editor__hint">**굵게** · *기울임* · &gt; 인용 · - 목록 · 이미지는 주소만 붙여넣기</p>
+    <p class="editor__hint">**굵게** · *기울임* · &gt; 인용 · - 목록 · 사진은 <b>사진</b> 버튼으로</p>
   </div>
 </section>
 
@@ -126,6 +128,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
